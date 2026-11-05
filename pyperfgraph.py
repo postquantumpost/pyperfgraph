@@ -36,6 +36,26 @@ LEGEND_BOX = 13
 LEGEND_GAP = 4
 
 
+def core_labels(ranks):
+    """Label known heterogeneous core ranks, fastest first."""
+    known = sorted({rank for rank in ranks if rank is not None}, reverse=True)
+    if len(known) < 2:
+        return [""] * len(ranks)
+    labels = {known[0]: "P"}
+    for i, rank in enumerate(known[1:], 1):
+        labels[rank] = "E" if len(known) == 2 else "E%d" % i
+    return [labels.get(rank, "") for rank in ranks]
+
+
+def clock_fraction(frequency):
+    if frequency is None:
+        return None
+    current, minimum, maximum = frequency
+    if minimum < 0 or maximum <= minimum or current <= 0:
+        return None
+    return max(0.0, min(1.0, (current - minimum) / (maximum - minimum)))
+
+
 def make_colors(n):
     """Return n distinct colors, alternating brightness between neighbours."""
     colors = []
@@ -76,6 +96,7 @@ class PerfGraph:
         max_samples = int(math.ceil(self.span / update)) + 2
         self.history = [deque(maxlen=max_samples) for _ in range(self.count)]
         self.current = [0.0] * self.count
+        self.read_cpu_details()
 
         root.title("pyperfgraph - CPU")
         root.configure(bg=BG_COLOR)
@@ -113,6 +134,7 @@ class PerfGraph:
                 self.current[i] = usage_percent(self.prev[i], cur[i])
                 self.history[i].append(self.current[i])
         self.prev = cur
+        self.read_cpu_details()
         self.draw()
         self.schedule_tick()
 
@@ -123,6 +145,16 @@ class PerfGraph:
         maxlen = self.history[0].maxlen
         self.history = [deque(maxlen=maxlen) for _ in range(self.count)]
         self.current = [0.0] * self.count
+
+    def read_cpu_details(self):
+        details = platform_cpu.read_cpu_details()
+        # Skip telemetry when hotplug changes the size between snapshots.
+        if len(details) != self.count - 1:
+            self.core_labels = [""] * self.count
+            self.clocks = [None] * self.count
+            return
+        self.core_labels = [""] + core_labels([rank for rank, _ in details])
+        self.clocks = [None] + [clock_fraction(freq) for _, freq in details]
 
     def draw(self):
         c = self.canvas
@@ -181,7 +213,9 @@ class PerfGraph:
                               width=3 if i == 0 else 1.5)
 
         font = tkfont.Font(font=FONT)
-        name_x = LEGEND_BOX + LEGEND_GAP
+        box = max(LEGEND_BOX, max(font.measure(label)
+                                 for label in self.core_labels) + 2)
+        name_x = box + LEGEND_GAP
         pct_x = (name_x + max(font.measure(n) for n in self.names)
                  + LEGEND_GAP + font.measure("100.0%"))
         col_w = (x1 - x0) / (LEGEND_COLUMNS + 1)
@@ -195,8 +229,13 @@ class PerfGraph:
             lx = x0 + col * col_w
             ly = ly0 + row * LEGEND_ROW_HEIGHT
             by = ly + 8 - LEGEND_BOX // 2
-            c.create_rectangle(lx, by, lx + LEGEND_BOX, by + LEGEND_BOX,
+            c.create_rectangle(lx, by, lx + box, by + LEGEND_BOX,
                                fill=self.colors[i], outline=TEXT_COLOR)
+            if self.core_labels[i]:
+                c.create_text(lx + box / 2 + 1, by + LEGEND_BOX / 2 + 1,
+                              text=self.core_labels[i], font=FONT, fill="black")
+                c.create_text(lx + box / 2, by + LEGEND_BOX / 2,
+                              text=self.core_labels[i], font=FONT, fill="white")
             c.create_text(lx + name_x, ly + 8, text=self.names[i], anchor="w",
                           font=FONT, fill=TEXT_COLOR)
             c.create_text(lx + pct_x, ly + 8, text="%.1f%%" % self.current[i],
@@ -232,6 +271,12 @@ class PerfGraph:
                           font=FONT, fill=TEXT_COLOR)
             c.create_text(cx, bottom + 4, text=self.names[i], anchor="n",
                           font=FONT, fill=TEXT_COLOR)
+            clock = self.clocks[i]
+            if clock is not None:
+                # Keep both one-pixel lines inside the plot at either endpoint.
+                y = bottom - 1 - (bottom - top - 1) * clock
+                c.create_line(bx0, y, bx1, y, fill="white")
+                c.create_line(bx0, y + 1, bx1, y + 1, fill="black")
 
 
 def positive_float(text):
