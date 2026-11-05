@@ -11,6 +11,7 @@ import colorsys
 import math
 import sys
 import tkinter as tk
+import tkinter.font as tkfont
 from collections import deque
 
 if sys.platform.startswith("win"):
@@ -28,8 +29,10 @@ GRID_COLOR = "#d8d8d8"
 TEXT_COLOR = "#303030"
 FONT = ("TkDefaultFont", 9)
 TITLE_FONT = ("TkDefaultFont", 10, "bold")
-LEGEND_COLUMNS = 4
+LEGEND_COLUMNS = 4  # CPU columns, in addition to the "All" column
 LEGEND_ROW_HEIGHT = 20
+LEGEND_BOX = 13
+LEGEND_GAP = 4
 
 
 def make_colors(n):
@@ -67,7 +70,7 @@ class PerfGraph:
         self.span = max(HISTORY_SECONDS, update * 10)
         self.prev = platform_cpu.read_cpu_times()
         self.count = len(self.prev)  # "All" + each CPU
-        self.names = ["All"] + ["CPU%d" % n for n in range(1, self.count)]
+        self.names = ["All"] + ["CPU%d" % n for n in range(self.count - 1)]
         self.colors = [ALL_COLOR] + make_colors(self.count - 1)
         max_samples = int(math.ceil(self.span / update)) + 2
         self.history = [deque(maxlen=max_samples) for _ in range(self.count)]
@@ -96,7 +99,7 @@ class PerfGraph:
 
     def __init_counts(self, cur):
         self.count = len(cur)
-        self.names = ["All"] + ["CPU%d" % n for n in range(1, self.count)]
+        self.names = ["All"] + ["CPU%d" % n for n in range(self.count - 1)]
         self.colors = [ALL_COLOR] + make_colors(self.count - 1)
         maxlen = self.history[0].maxlen
         self.history = [deque(maxlen=maxlen) for _ in range(self.count)]
@@ -118,7 +121,7 @@ class PerfGraph:
         c = self.canvas
         c.create_text(x0, y0 + 6, text="CPU History", anchor="nw",
                       font=TITLE_FONT, fill=TEXT_COLOR)
-        legend_rows = int(math.ceil(self.count / LEGEND_COLUMNS))
+        legend_rows = max(1, int(math.ceil((self.count - 1) / LEGEND_COLUMNS)))
         legend_h = legend_rows * LEGEND_ROW_HEIGHT + 6
         left, right = x0, x1 - 45
         top, bottom = y0 + 28, y1 - legend_h - 20
@@ -158,17 +161,26 @@ class PerfGraph:
                 c.create_line(*points, fill=self.colors[i], smooth=True,
                               width=3 if i == 0 else 1.5)
 
-        col_w = (x1 - x0) / LEGEND_COLUMNS
+        font = tkfont.Font(font=FONT)
+        name_x = LEGEND_BOX + LEGEND_GAP
+        pct_x = (name_x + max(font.measure(n) for n in self.names)
+                 + LEGEND_GAP + font.measure("100.0%"))
+        col_w = (x1 - x0) / (LEGEND_COLUMNS + 1)
         ly0 = bottom + 24
         for i in range(self.count):
-            col, row = divmod(i, legend_rows)
+            if i == 0:
+                col, row = 0, 0
+            else:
+                col, row = divmod(i - 1, legend_rows)
+                col += 1
             lx = x0 + col * col_w
             ly = ly0 + row * LEGEND_ROW_HEIGHT
-            c.create_rectangle(lx, ly + 2, lx + 28, ly + 15,
+            by = ly + 8 - LEGEND_BOX // 2
+            c.create_rectangle(lx, by, lx + LEGEND_BOX, by + LEGEND_BOX,
                                fill=self.colors[i], outline=TEXT_COLOR)
-            c.create_text(lx + 36, ly + 8, text=self.names[i], anchor="w",
+            c.create_text(lx + name_x, ly + 8, text=self.names[i], anchor="w",
                           font=FONT, fill=TEXT_COLOR)
-            c.create_text(lx + 140, ly + 8, text="%5.1f%%" % self.current[i],
+            c.create_text(lx + pct_x, ly + 8, text="%.1f%%" % self.current[i],
                           anchor="e", font=FONT, fill=TEXT_COLOR)
 
     def draw_bars(self, x0, y0, x1, y1):
@@ -216,9 +228,9 @@ def positive_float(text):
 def main(argv=None):
     parser = argparse.ArgumentParser(
         description="Display a live graph of CPU performance.")
-    parser.add_argument("--update", type=positive_float, default=1.0,
+    parser.add_argument("--update", type=positive_float, default=0.2,
                         metavar="SECONDS",
-                        help="update rate in seconds (default: 1.0)")
+                        help="update rate in seconds (default: 0.2)")
     args = parser.parse_args(argv)
 
     root = tk.Tk()

@@ -1,13 +1,14 @@
 """Linux CPU usage sampling for pyperfgraph, based on /proc/stat."""
 
 PROC_STAT = "/proc/stat"
+MAX_CPUS = 1024
 
 
 def read_cpu_times():
     """Return cumulative CPU times as a list of (idle, total) tuples.
 
     Index 0 is the combined "all" entry; indices 1..N are the individual
-    CPUs ordered by CPU number.
+    CPUs ordered by CPU number (at most MAX_CPUS).
     """
     combined = None
     per_cpu = {}
@@ -29,4 +30,4 @@ def read_cpu_times():
                 per_cpu[int(name[3:])] = (idle, total)
     if combined is None:
         raise RuntimeError("Unable to read CPU statistics from " + PROC_STAT)
-    return [combined] + [per_cpu[n] for n in sorted(per_cpu)]
+    return [combined] + [per_cpu[n] for n in sorted(per_cpu)[:MAX_CPUS]]
