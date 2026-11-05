@@ -10,6 +10,7 @@ import argparse
 import colorsys
 import math
 import sys
+import time
 import tkinter as tk
 import tkinter.font as tkfont
 from collections import deque
@@ -82,7 +83,25 @@ class PerfGraph:
                                 highlightthickness=0)
         self.canvas.pack(fill=tk.BOTH, expand=True)
         self.canvas.bind("<Configure>", lambda e: self.draw())
+        self.next_due = time.monotonic() + update
         root.after(int(update * 1000), self.tick)
+
+    def schedule_tick(self):
+        """Schedule the next tick against an absolute monotonic deadline.
+
+        Scheduling a fixed "update" delay from the end of each tick would add
+        the sampling/drawing cost and the timer lateness (notably the ~16 ms
+        Windows timer granularity) to every interval, making the effective
+        update rate permanently slower than requested.  Using a deadline
+        instead compensates for each tick's lateness in the next one.
+        """
+        self.next_due += self.update
+        now = time.monotonic()
+        if self.next_due <= now:
+            # Fell behind (e.g. heavy load); resynchronize rather than
+            # firing a burst of back-to-back ticks.
+            self.next_due = now + self.update
+        self.root.after(max(1, int((self.next_due - now) * 1000)), self.tick)
 
     def tick(self):
         cur = platform_cpu.read_cpu_times()
@@ -95,7 +114,7 @@ class PerfGraph:
                 self.history[i].append(self.current[i])
         self.prev = cur
         self.draw()
-        self.root.after(int(self.update * 1000), self.tick)
+        self.schedule_tick()
 
     def __init_counts(self, cur):
         self.count = len(cur)
