@@ -269,6 +269,9 @@ class PerfGraph:
                                outline=self.colors[i])
             c.create_text(cx, by - 3, text="%.0f%%" % pct, anchor="s",
                           font=FONT, fill=TEXT_COLOR)
+            if self.core_labels[i]:
+                c.create_text(cx, y0 + 24, text=self.core_labels[i],
+                              anchor="center", font=FONT, fill=TEXT_COLOR)
             c.create_text(cx, bottom + 4, text=self.names[i], anchor="n",
                           font=FONT, fill=TEXT_COLOR)
             clock = self.clocks[i]

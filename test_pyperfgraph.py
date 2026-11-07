@@ -61,6 +61,16 @@ class CoreDisplayTests(unittest.TestCase):
             self.assertGreaterEqual(white.args[1], top)
             self.assertLessEqual(black.args[1], bottom)
 
+    def test_core_labels_above_bars(self):
+        graph = self.graph()
+        graph.draw_bars(0, 0, 400, 300)
+        labels = [call for call in graph.canvas.create_text.call_args_list
+                  if call.kwargs["text"] in ("P", "E1", "E2")]
+        self.assertEqual([call.kwargs["text"] for call in labels],
+                         ["P", "E1", "E2"])
+        self.assertEqual([call.args[:2] for call in labels],
+                         [(175, 24), (265, 24), (355, 24)])
+
     def test_legend_overlays_and_variable_width(self):
         graph = self.graph()
         font = Mock()
