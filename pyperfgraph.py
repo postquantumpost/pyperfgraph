@@ -295,9 +295,9 @@ def positive_float(text):
 def main(argv=None):
     parser = argparse.ArgumentParser(
         description="Display a live graph of CPU performance.")
-    parser.add_argument("--update", type=positive_float, default=0.2,
+    parser.add_argument("--update", type=positive_float, default=1.0,
                         metavar="SECONDS",
-                        help="update rate in seconds (default: 0.2)")
+                        help="update rate in seconds (default: 1.0)")
     args = parser.parse_args(argv)
 
     root = tk.Tk()

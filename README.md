@@ -1,6 +1,8 @@
 # pyperfgraph
 A local performance monitor that produces a graph in a window for linux and windows.
 
+Much of this code was developed with AI tools including code generation.
+
 ## Requirements
 - Python 3 with tkinter (on Debian/Ubuntu: `sudo apt install python3-tk`). No other packages are needed.
 
